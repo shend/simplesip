@@ -5,14 +5,12 @@ import (
 	"log/slog"
 	"net"
 
-	"github.com/shend/simplesip/parser"
-
 	"github.com/shend/simplesip/message"
+	"github.com/shend/simplesip/parser"
+	"github.com/shend/simplesip/transport"
 
 	jartsip "github.com/jart/gosip/sip"
 	jartutil "github.com/jart/gosip/util"
-
-	"github.com/shend/simplesip/transport"
 )
 
 // Server is a SIP server
@@ -70,7 +68,13 @@ func (srv *Server) handleRequest(req *message.Message) *message.Message {
 		mid(req)
 	}
 
-	handler := srv.getHandler(message.FromString(req.Msg.Method))
+	var method string
+	if req.Msg.IsResponse() {
+		method = req.Msg.CSeqMethod
+	} else {
+		method = req.Msg.Method
+	}
+	handler := srv.getHandler(message.FromString(method))
 	res := handler(req)
 
 	final := false
