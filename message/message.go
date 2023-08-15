@@ -19,12 +19,16 @@ func FromString(r string) RequestMethod { return RequestMethod(r) }
 // StatusCode - 响应状态码: 1xx - 6xx
 type StatusCode int
 
+type RespondFunc func(*Message) error
+
 type Message struct {
 	Msg       *sip.Msg
 	Transport string
 
 	Source      string
 	Destination string
+
+	Respond RespondFunc
 }
 
 // 请求方法常量
@@ -51,5 +55,6 @@ func (m *Message) Clone() Message {
 		Transport:   m.Transport,
 		Source:      m.Source,
 		Destination: m.Destination,
+		Respond:     m.Respond,
 	}
 }

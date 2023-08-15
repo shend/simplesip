@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"errors"
+
 	"github.com/jart/gosip/sip"
 
 	"github.com/shend/simplesip/message"
@@ -15,8 +17,12 @@ func (p *Parser) ParseMsg(data []byte) (msg *message.Message, err error) {
 	if err != nil {
 		return nil, err
 	}
+	if msg0.Via == nil {
+		return nil, errors.New("invalid SIP: \"Via\" header field is mandatory")
+	}
 	msg1 := &message.Message{
-		Msg: msg0.Copy(),
+		Msg:       msg0.Copy(),
+		Transport: msg0.Via.Transport,
 	}
 	return msg1, nil
 }

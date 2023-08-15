@@ -90,6 +90,7 @@ func (t *UDPTransport) Serve(conn net.PacketConn, handler func(msg *message.Mess
 
 func (t *UDPTransport) readConnection(conn *UDPConnection, handler func(*message.Message)) {
 	buf := make([]byte, transportBufferSize)
+	laddr := conn.PacketConn.LocalAddr().String()
 	defer conn.Close()
 	for {
 		num, raddr, err := conn.ReadFrom(buf)
@@ -104,12 +105,16 @@ func (t *UDPTransport) readConnection(conn *UDPConnection, handler func(*message
 			continue
 		}
 
-		t.parseAndHandle(data, raddr.String(), handler)
+		msg := t.parseAndHandle(data, raddr.String(), laddr, conn.WriteMsg)
+		if msg != nil {
+			handler(msg)
+		}
 	}
 }
 
 func (t *UDPTransport) readConnectedConnection(conn *UDPConnection, handler func(*message.Message)) {
 	buf := make([]byte, transportBufferSize)
+	laddr := conn.Conn.LocalAddr().String()
 	raddr := conn.Conn.RemoteAddr().String()
 	defer func() {
 		// Delete connection from pool only when closed
@@ -129,40 +134,39 @@ func (t *UDPTransport) readConnectedConnection(conn *UDPConnection, handler func
 			continue
 		}
 
-		t.parseAndHandle(data, raddr, handler)
+		msg := t.parseAndHandle(data, raddr, laddr, conn.WriteMsg)
+		if msg != nil {
+			handler(msg)
+		}
 	}
 }
 
-func (t *UDPTransport) parseAndHandle(data []byte, src string, handler func(*message.Message)) {
+func (t *UDPTransport) parseAndHandle(data []byte, src string, dst string, respond message.RespondFunc) *message.Message {
 	// Check is keep alive
 	if len(data) <= 4 {
 		// One or 2 CRLF
 		if len(bytes.Trim(data, "\r\n")) == 0 {
 			slog.Debug("Keep alive CRLF received")
-			return
+			return nil
 		}
 	}
 
 	msg, err := t.parser.ParseMsg(data)
 	if err != nil {
-		slog.Debug("failed to parse", slog.String("data", string(data)), slog.Any("err", err))
-		return
+		slog.Debug("failed to parse", slog.String("data", string(data)), slog.String("err", err.Error()))
+		return nil
 	}
 
-	if msg.Msg.Via == nil {
-		slog.Warn("invalid SIP: \"Via\" header field is mandatory")
-		return
-	}
-
-	if msg.Msg.Via.Transport != "UDP" {
+	if msg.Transport != "UDP" {
 		slog.Debug("transport mismatch", slog.String("transport", msg.Msg.Via.Transport))
-		return
+		return nil
 	}
 
-	msg.Transport = "UDP"
 	msg.Source = src
+	msg.Destination = dst
+	msg.Respond = respond
 
-	handler(msg)
+	return msg
 }
 
 type UDPConnection struct {
