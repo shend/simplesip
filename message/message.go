@@ -58,3 +58,7 @@ func (m *Message) Clone() Message {
 		Respond:     m.Respond,
 	}
 }
+
+func (m *Message) GetBranch() string {
+	return m.Msg.Via.Param.Get("branch").Value
+}
